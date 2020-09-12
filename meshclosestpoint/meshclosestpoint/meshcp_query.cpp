@@ -23,16 +23,50 @@ meshcp_query_base::meshcp_query_base(const mesh& m) : m_mesh(m)
 {
 }
 
+glm::vec3 mesh::barycentric(
+    const glm::vec3& a,
+    const glm::vec3& b,
+    const glm::vec3& c,
+    const glm::vec3& p)
+{
+    glm::vec3 v0 = b - a, v1 = c - a, v2 = p - a;
+    float d00 = glm::dot(v0, v0);
+    float d01 = glm::dot(v0, v1);
+    float d11 = glm::dot(v1, v1);
+    float d20 = glm::dot(v2, v0);
+    float d21 = glm::dot(v2, v1);
+    float denom = d00 * d11 - d01 * d01;
+    glm::vec3 bary;
+    bary.y = denom == 0.0f ? FLT_MAX : (d11 * d20 - d01 * d21) / denom;
+    bary.z = denom == 0.0f ? FLT_MAX : (d00 * d21 - d01 * d20) / denom;
+    bary.x = 1.0f - bary.y - bary.z;
+    return bary;
+}
+
 void mesh::compute_normals()
 {
-    facenormals.clear();
-    facenormals.reserve(faces.size());
+    face_normals.clear();
+    face_normals.reserve(faces.size());
     for (const mesh::face_type& face : faces)
     {
         const glm::vec3& a = vertices.at(face[0]);
         const glm::vec3& b = vertices.at(face[1]);
         const glm::vec3& c = vertices.at(face[2]);
-        facenormals.push_back(glm::normalize(glm::cross(b - a, c - a)));
+        face_normals.push_back(glm::normalize(glm::cross(b - a, c - a)));
+    }
+}
+
+void mesh::cache_edge_info()
+{
+    face_edges.clear();
+    face_edges.reserve(faces.size());
+    for (const mesh::face_type& face : faces)
+    {
+        face_edges.push_back({
+            edge_info(vertices[face[1]], vertices[face[2]]),
+            edge_info(vertices[face[2]], vertices[face[0]]),
+            edge_info(vertices[face[0]], vertices[face[1]]),
+        });
     }
 }
 
@@ -41,6 +75,7 @@ mesh::mesh(const glm::vec3* verts, uint32_t nVerts, const uint32_t* triIndices, 
 {
     std::memcpy(faces.data(), triIndices, sizeof(uint32_t) * 3 * nTriangles);
     compute_normals();
+    cache_edge_info();
 }
 
 void mesh::populate_facetree(boost_rtree& tree)
@@ -57,106 +92,51 @@ void mesh::populate_facetree(boost_rtree& tree)
     tree.insert(items.cbegin(), items.cend());
 }
 
-glm::vec3 mesh::face_closest_pt(uint32_t faceIndex, const glm::vec3& pt) const
+void mesh::face_closest_pt(uint32_t faceIndex, const glm::vec3& pt, float& squaredDistance, glm::vec3& dest) const
 {
     const face_type& face = faces.at(faceIndex);
-    const glm::vec3& facenorm = facenormals.at(faceIndex);
-    const glm::vec3& tri0 = vertices.at(face[0]);
-    const glm::vec3& tri1 = vertices.at(face[1]);
-    const glm::vec3& tri2 = vertices.at(face[2]);
-    glm::vec3 projected = (facenorm * glm::dot(tri0 - pt, facenorm)) + pt;
+    const glm::vec3& a = vertices.at(face[0]);
+    const glm::vec3& b = vertices.at(face[1]);
+    const glm::vec3& c = vertices.at(face[2]);
+    const glm::vec3& facenorm = face_normals.at(faceIndex);
+    glm::vec3 projection = facenorm * glm::dot(a - pt, facenorm);
+    if (glm::dot(projection, projection) >= squaredDistance)
+        return;
+    glm::vec3 projected = projection + pt;
+    glm::vec3 bary = barycentric(a, b, c, projected);
 
-    glm::vec3 edge0 = tri1 - tri0;
-    glm::vec3 edge1 = tri2 - tri0;
-    glm::vec3 v0 = tri0 - projected;
-
-    float dot00 = glm::dot(edge0, edge0);
-    float dot01 = glm::dot(edge0, edge1);
-    float dot11 = glm::dot(edge1, edge1);
-    float dot0v = glm::dot(edge0, v0);
-    float dot1v = glm::dot(edge1, v0);
-
-    float det = dot00 * dot11 - dot01 * dot01;
-    float s = dot01 * dot1v - dot11 * dot0v;
-    float t = dot01 * dot0v - dot00 * dot1v;
-
-    if (s + t < det)
+    if (bary.x > 0 && bary.y > 0 && bary.z > 0)
     {
-        if (s < 0.f)
-        {
-            if (t < 0.f)
-            {
-                if (dot0v < 0.f)
-                {
-                    s = clamp(-dot0v / dot00, 0.f, 1.f);
-                    t = 0.f;
-                }
-                else
-                {
-                    s = 0.f;
-                    t = clamp(-dot1v / dot11, 0.f, 1.f);
-                }
-            }
-            else
-            {
-                s = 0.f;
-                t = clamp(-dot1v / dot11, 0.f, 1.f);
-            }
-        }
-        else if (t < 0.f)
-        {
-            s = clamp(-dot0v / dot00, 0.f, 1.f);
-            t = 0.f;
-        }
-        else
-        {
-            float invDet = 1.0f / det;
-            s *= invDet;
-            t *= invDet;
-        }
+        squaredDistance = std::powf(glm::dot(a - pt, facenorm), 2.0f);
+        dest = projected;
     }
-    else
-    {
-        if (s < 0.f)
-        {
-            float tmp0 = dot01 + dot0v;
-            float tmp1 = dot11 + dot1v;
-            if (tmp1 > tmp0)
-            {
-                float numer = tmp1 - tmp0;
-                float denom = dot00 - 2 * dot01 + dot11;
-                s = clamp(numer / denom, 0.f, 1.f);
-                t = 1 - s;
-            }
-            else
-            {
-                t = clamp(-dot1v / dot11, 0.f, 1.f);
-                s = 0.f;
-            }
-        }
-        else if (t < 0.f)
-        {
-            if (dot00 + dot0v > dot01 + dot1v)
-            {
-                float numer = dot11 + dot1v - dot01 - dot0v;
-                float denom = dot00 - 2 * dot01 + dot11;
-                s = clamp(numer / denom, 0.f, 1.f);
-                t = 1 - s;
-            }
-            else
-            {
-                s = clamp(-dot1v / dot11, 0.f, 1.f);
-                t = 0.f;
-            }
-        }
-        else
-        {
-            float numer = dot11 + dot1v - dot01 - dot0v;
-            float denom = dot00 - 2 * dot01 + dot11;
-            s = clamp(numer / denom, 0.f, 1.f);
-            t = 1.f - s;
-        }
-    }
+    const edgeset_type& edges = face_edges.at(faceIndex);
+    if (bary.x < 0)
+        edges[0].closest_point(projected, squaredDistance, dest);
+    if (bary.y < 0)
+        edges[1].closest_point(projected, squaredDistance, dest);
+    if (bary.z < 0)
+        edges[2].closest_point(projected, squaredDistance, dest);
+}
 
-    return tri0 + s * edge0 + t * edge1;
+float squared_length(const glm::vec3& a)
+{
+    return a.x * a.x + a.y * a.y + a.z * a.z;
+}
+
+edge_info::edge_info(const glm::vec3& v1, const glm::vec3& v2) :
+    start(v1), vector(v2 - v1)
+{
+    l2_scaled = vector / glm::dot(vector, vector);
+}
+
+void edge_info::closest_point(const glm::vec3& pt, float& squaredDistance, glm::vec3& dest) const
+{
+    glm::vec3 temp = start + clamp(glm::dot(l2_scaled, pt - start), 0.0f, 1.0f) * vector;
+    float distSqTemp = squared_length(temp - pt);
+    if (distSqTemp < squaredDistance)
+    {
+        dest = temp;
+        squaredDistance = distSqTemp;
+    }
 }

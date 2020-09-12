@@ -73,22 +73,16 @@ void read_points(const std::string& filepath, std::vector<glm::vec3>& samples, s
     assert(pos == bytes.size()); // EOF
 }
 
-float max_error(const std::vector<glm::vec3>& expected, const std::vector<glm::vec3>& results)
+float max_error(const std::vector<glm::vec3>& expected, const std::vector<glm::vec3>& results, const std::vector<glm::vec3>& points)
 {
     size_t nPoints = std::min(expected.size(), results.size());
-    float dmax = 0.0f;
+    float errmax = 0.0f;
     for (size_t i = 0; i < expected.size(); i++)
     {
-        float dist = glm::distance(expected[i], results[i]);
-        if (dist > 1e-5f)
-        {
-            std::cerr << "Error higher than tolerance for test case: " << i << std::endl
-                << "\tExpected (" << expected[i].x << ", " << expected[i].y << ", " << expected[i].z << ")\n"
-                << "\tResult   (" << results[i].x << ", " << results[i].y << ", " << results[i].z << ")\n";
-        }
-        dmax = std::max(dmax, dist);
+        float error = glm::distance(results[i], points[i]) - glm::distance(expected[i], points[i]);
+        errmax = std::max(errmax, error);
     }
-    return dmax;
+    return errmax;
 }
 
 int main(int argc, char* argv[])
@@ -99,7 +93,7 @@ int main(int argc, char* argv[])
         return 1;
     }
     //std::string name(argv[1]);
-    std::string name("D:\\OneDrive\\Works\\myPrograms\\meshcp_for_AL1\\meshclosestpoint\\x64\\Release\\bunny");
+    std::string name("D:\\OneDrive\\Works\\myPrograms\\meshcp_for_AL\\meshclosestpoint\\x64\\Release\\bunny");
     std::cout << "=============================\n";
     std::cout << "Test case: " << name << std::endl;
     std::cout << "=============================\n\n";
@@ -124,6 +118,6 @@ int main(int argc, char* argv[])
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
 
-    float error = max_error(expected, results);
+    float error = max_error(expected, results, points);
     std::cout << "Maximum deviation from the expected results: " << error << std::endl;
 }

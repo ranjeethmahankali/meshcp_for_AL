@@ -27,30 +27,58 @@ float clamp(T val, T min, T max)
         val;
 };
 
+float squared_length(const glm::vec3& a);
+
+struct edge_info
+{
+    glm::vec3 start;
+    glm::vec3 vector;
+    glm::vec3 l2_scaled = UNSET;
+
+    edge_info() = default;
+    edge_info(const glm::vec3& v1, const glm::vec3& v2);
+
+    void closest_point(const glm::vec3& pt, float& squaredDistance, glm::vec3& dest) const;
+};
+
 struct mesh
 {
 private:
+    static glm::vec3 barycentric(
+        const glm::vec3& a,
+        const glm::vec3& b,
+        const glm::vec3& c,
+        const glm::vec3& p);
+
     void compute_normals();
+    void cache_edge_info();
 public:
     using face_type = std::array<uint32_t, 3>;
+    using edgeset_type = std::array<edge_info, 3>;
     std::vector<glm::vec3> vertices;
     std::vector<face_type> faces;
-    std::vector<glm::vec3> facenormals;
+    std::vector<glm::vec3> face_normals;
+    std::vector<edgeset_type> face_edges;
 
     mesh(const glm::vec3* verts, uint32_t nVerts, const uint32_t* triIndices, uint32_t nTriangles);
 
     void populate_facetree(boost_rtree& tree);
-    glm::vec3 face_closest_pt(uint32_t faceIndex, const glm::vec3& pt) const;
+    void face_closest_pt(uint32_t faceIndex, const glm::vec3& pt, float& squaredDistance, glm::vec3& dest) const;
 };
 
-union box3
+struct box3
 {
-    struct
+    /*IMPORTANT: This union only works if the data layout of the boost rtree is {xmin, ymin, zmin, xmax, ymax, zmax}.
+    If, for some reason, this is changed, this union will not work.*/
+    union
     {
-        glm::vec3 min;
-        glm::vec3 max;
+        struct
+        {
+            glm::vec3 min;
+            glm::vec3 max;
+        };
+        boost_box3f boostbox;
     };
-    boost_box3f boostbox;
 
     box3();
 
@@ -118,16 +146,10 @@ public:
         m_facetree.query(bgi::intersects(box.boostbox), std::back_inserter(m_queryResults));
 
         glm::vec3 best = UNSET;
-        float bestDist = FLT_MAX;
+        float bestDistSq = FLT_MAX;
         for (const rtree_item& item : m_queryResults)
         {
-            glm::vec3 temp = m_mesh.face_closest_pt(item.second, pt);
-            float dist = glm::distance(temp, pt);
-            if (dist < bestDist)
-            {
-                best = temp;
-                bestDist = dist;
-            }
+            m_mesh.face_closest_pt(item.second, pt, bestDistSq, best);
         }
 
         return best;
