@@ -13,8 +13,12 @@ void box3::inflate(const glm::vec3& pt)
     max.z = std::max(pt.z, max.z);
 }
 
-meshcp_query_base::meshcp_query_base(const mesh& m) : m_mesh(m)
+void box3::inflate(float dist)
 {
+    dist = std::max(0.0f, dist);
+    glm::vec3 half(dist, dist, dist);
+    min -= half;
+    max += half;
 }
 
 void mesh::compute_normals()

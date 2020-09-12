@@ -4,6 +4,7 @@
 #include <meshcp_query.h>
 #include <fstream>
 #include <chrono>
+#include <execution>
 
 template <typename T>
 struct is_serial : public std::is_fundamental<T> {};
@@ -105,11 +106,12 @@ int main(int argc, char* argv[])
     std::cout << "Reading points from " << meshfile << std::endl;
     read_points(pointsfile, points, expected);
 
-    meshcp_query<strategies::VERT_FILTER> query(msh);
+    meshcp_query query(msh);
     std::vector<glm::vec3> results;
     results.reserve(points.size());
 
-    std::cout << "Performing MeshCP query on " << points.size() << " test points\n";
+
+    std::cout << "\nPerforming serial MeshCP query with " << points.size() << " test points\n";
     auto start = std::chrono::high_resolution_clock::now();
     for (const glm::vec3& pt : points)
     {
@@ -119,5 +121,21 @@ int main(int argc, char* argv[])
     std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
 
     float error = max_error(expected, results, points);
+    std::cout << "Maximum deviation from the expected results: " << error << std::endl;
+
+    std::vector<uint32_t> indices(points.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    results.resize(indices.size());
+    results.clear();
+    results.resize(indices.size());
+    std::cout << "\nPerforming parallel MeshCP query with " << points.size() << " test points\n";
+    start = std::chrono::high_resolution_clock::now();
+    std::for_each(std::execution::par_unseq, indices.cbegin(), indices.cend(),
+        [&points, &query, &results](uint32_t i) {
+            results[i] = query.run<options::PARALLEL>(points[i], 100.0f);
+        });
+    end = std::chrono::high_resolution_clock::now();
+    std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+    error = max_error(expected, results, points);
     std::cout << "Maximum deviation from the expected results: " << error << std::endl;
 }
