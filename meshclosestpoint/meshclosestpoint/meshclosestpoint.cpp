@@ -29,21 +29,27 @@ size_t deserialize(char* src, size_t pos, T* dest, size_t numElements)
     return pos + nBytes;
 };
 
-void read_bytes(const std::string& filepath, std::vector<char>& bytes)
+bool read_bytes(const std::string& filepath, std::vector<char>& bytes)
 {
     std::ifstream ifs(filepath, std::ios::binary | std::ios::ate); // Seek to the end of the file with ate.
+    if (!ifs.is_open())
+    {
+        std::cerr << "Unable to open the file - " << filepath << std::endl;
+        return false;
+    }
     std::ifstream::pos_type length = ifs.tellg();
     bytes.clear();
     bytes.resize(length);
     ifs.seekg(0, std::ios::beg);
     ifs.read(bytes.data(), length);
     ifs.close();
+    return true;
 }
 
 mesh read_mesh(const std::string& filepath)
 {
     std::vector<char> bytes;
-    read_bytes(filepath, bytes);
+    if (!read_bytes(filepath, bytes)) return mesh();
     uint32_t nVerts = 0;
     uint32_t nFaces = 0;
     size_t pos = 0;
@@ -59,7 +65,7 @@ mesh read_mesh(const std::string& filepath)
 void read_points(const std::string& filepath, std::vector<glm::vec3>& samples, std::vector<glm::vec3>& results)
 {
     std::vector<char> bytes;
-    read_bytes(filepath, bytes);
+    if (!read_bytes(filepath, bytes)) return;
     samples.clear();
     results.clear();
     uint32_t nPoints = 0;
@@ -93,8 +99,8 @@ int main(int argc, char* argv[])
         std::cerr << "Please supply the name of the test case.\n";
         return 1;
     }
-    //std::string name(argv[1]);
-    std::string name("D:\\OneDrive\\Works\\myPrograms\\meshcp_for_AL\\meshclosestpoint\\x64\\Release\\bunny");
+    std::string name(argv[1]);
+    //std::string name("D:\\OneDrive\\Works\\myPrograms\\meshcp_for_AL\\meshclosestpoint\\x64\\Release\\dragon");
     std::cout << "=============================\n";
     std::cout << "Test case: " << name << std::endl;
     std::cout << "=============================\n\n";

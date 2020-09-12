@@ -70,6 +70,7 @@ public:
     std::vector<edgeset_type> face_edges;
     std::vector<barycentric> barycentric_caches;
 
+    mesh() = default;
     mesh(const glm::vec3* verts, uint32_t nVerts, const uint32_t* triIndices, uint32_t nTriangles);
 
     void populate_facetree(boost_rtree& tree);
@@ -81,6 +82,11 @@ struct box3
 {
     /*IMPORTANT: This union only works if the data layout of the boost rtree is {xmin, ymin, zmin, xmax, ymax, zmax}.
     If, for some reason, this is changed, this union will not work.*/
+    static_assert(
+        sizeof(glm::vec3) == sizeof(boost_vec3f) &&
+        sizeof(boost_box3f) == sizeof(glm::vec3) * 2,
+        "The use of union in this structure doesn't make sense.");
+public:
     union
     {
         struct
