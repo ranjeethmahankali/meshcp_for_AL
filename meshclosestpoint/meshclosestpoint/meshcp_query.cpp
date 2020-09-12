@@ -100,23 +100,25 @@ void mesh::face_closest_pt(uint32_t faceIndex, const glm::vec3& pt, float& squar
     const glm::vec3& c = vertices.at(face[2]);
     const glm::vec3& facenorm = face_normals.at(faceIndex);
     glm::vec3 projection = facenorm * glm::dot(a - pt, facenorm);
-    if (glm::dot(projection, projection) >= squaredDistance)
+    float projLenSq = squared_length(projection);
+    if (projLenSq >= squaredDistance)
         return;
     glm::vec3 projected = projection + pt;
     glm::vec3 bary = barycentric(a, b, c, projected);
 
     if (bary.x > 0 && bary.y > 0 && bary.z > 0)
     {
-        squaredDistance = std::powf(glm::dot(a - pt, facenorm), 2.0f);
+        squaredDistance = projLenSq;
         dest = projected;
+        return;
     }
     const edgeset_type& edges = face_edges.at(faceIndex);
     if (bary.x < 0)
-        edges[0].closest_point(projected, squaredDistance, dest);
+        edges.at(0).closest_point(pt, projected, squaredDistance, dest);
     if (bary.y < 0)
-        edges[1].closest_point(projected, squaredDistance, dest);
+        edges.at(1).closest_point(pt, projected, squaredDistance, dest);
     if (bary.z < 0)
-        edges[2].closest_point(projected, squaredDistance, dest);
+        edges.at(2).closest_point(pt, projected, squaredDistance, dest);
 }
 
 float squared_length(const glm::vec3& a)
@@ -130,9 +132,9 @@ edge_info::edge_info(const glm::vec3& v1, const glm::vec3& v2) :
     l2_scaled = vector / glm::dot(vector, vector);
 }
 
-void edge_info::closest_point(const glm::vec3& pt, float& squaredDistance, glm::vec3& dest) const
+void edge_info::closest_point(const glm::vec3& pt, const glm::vec3& projected, float& squaredDistance, glm::vec3& dest) const
 {
-    glm::vec3 temp = start + clamp(glm::dot(l2_scaled, pt - start), 0.0f, 1.0f) * vector;
+    glm::vec3 temp = start + clamp(glm::dot(l2_scaled, projected - start), 0.0f, 1.0f) * vector;
     float distSqTemp = squared_length(temp - pt);
     if (distSqTemp < squaredDistance)
     {

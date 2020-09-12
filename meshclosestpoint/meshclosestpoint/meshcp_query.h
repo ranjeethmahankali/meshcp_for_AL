@@ -38,7 +38,7 @@ struct edge_info
     edge_info() = default;
     edge_info(const glm::vec3& v1, const glm::vec3& v2);
 
-    void closest_point(const glm::vec3& pt, float& squaredDistance, glm::vec3& dest) const;
+    void closest_point(const glm::vec3& pt, const glm::vec3& projected, float& squaredDistance, glm::vec3& dest) const;
 };
 
 struct mesh
