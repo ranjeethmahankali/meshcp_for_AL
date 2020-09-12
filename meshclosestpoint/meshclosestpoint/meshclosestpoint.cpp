@@ -105,7 +105,7 @@ int main(int argc, char* argv[])
     std::cout << "Reading points from " << meshfile << std::endl;
     read_points(pointsfile, points, expected);
 
-    meshcp_query<strategies::NONE> query(msh);
+    meshcp_query<strategies::VERT_FILTER> query(msh);
     std::vector<glm::vec3> results;
     results.reserve(points.size());
 

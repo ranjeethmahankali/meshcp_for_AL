@@ -73,6 +73,7 @@ public:
     mesh(const glm::vec3* verts, uint32_t nVerts, const uint32_t* triIndices, uint32_t nTriangles);
 
     void populate_facetree(boost_rtree& tree);
+    void populate_vertextree(boost_rtree& tree);
     void face_closest_pt(uint32_t faceIndex, const glm::vec3& pt, float& squaredDistance, glm::vec3& dest) const;
 };
 
@@ -92,20 +93,14 @@ struct box3
 
     box3();
 
-    void inflate_one(const glm::vec3& pt);
+    void inflate(const glm::vec3& pt);
 
-    template <typename... T>
-    void inflate(const T&... morePts) {};
-
-    template <typename... T>
-    void inflate(const glm::vec3& pt, const T&... morePts)
+    template <typename T, typename... TMore>
+    void inflate(T first, const TMore&... more)
     {
-        inflate_one(pt);
-        inflate<T...>(morePts...);
+        inflate(first);
+        inflate(more...);
     }
-
-    template<>
-    void inflate<glm::vec3>(const glm::vec3& pt);
 };
 
 namespace strategies
@@ -167,4 +162,47 @@ public:
 };
 
 template <>
-class meshcp_query<strategies::VERT_FILTER | strategies::PARALLEL>;
+class meshcp_query<strategies::VERT_FILTER> : public meshcp_query_base
+{
+    boost_rtree m_facetree;
+    boost_rtree m_verttree;
+    meshcp_query<strategies::NONE> tester;
+    mutable std::vector<rtree_item> m_queryResults;
+
+public:
+    meshcp_query(const mesh& m) : meshcp_query_base(m), tester(m)
+    {
+        m_mesh.populate_facetree(m_facetree);
+        m_mesh.populate_vertextree(m_verttree);
+        m_queryResults.reserve(m.faces.size());
+    };
+
+    glm::vec3 operator()(const glm::vec3& pt, float maxDistance) const
+    {
+        box3 box;
+        maxDistance = std::abs(maxDistance);
+
+        std::vector<rtree_item> vertResults;
+        m_verttree.query(bgi::nearest(boost_vec3f(pt.x, pt.y, pt.z), 1), std::back_inserter(vertResults));
+        if (vertResults.empty()) return UNSET;
+        float vertDistance = glm::distance(m_mesh.vertices.at(vertResults[0].second), pt);
+        if (vertDistance > maxDistance) return UNSET;
+        
+        maxDistance = vertDistance * 1.1f;
+
+        glm::vec3 halfVec(maxDistance, maxDistance, maxDistance);
+        box.min = pt - halfVec;
+        box.max = pt + halfVec;
+        m_queryResults.clear();
+        m_facetree.query(bgi::intersects(box.boostbox), std::back_inserter(m_queryResults));
+
+        glm::vec3 best = UNSET;
+        float bestDistSq = FLT_MAX;
+        for (const rtree_item& item : m_queryResults)
+        {
+            m_mesh.face_closest_pt(item.second, pt, bestDistSq, best);
+        }
+
+        return best;
+    };
+};

@@ -3,7 +3,7 @@
 
 box3::box3() : min(UNSET), max(-UNSET) { }
 
-void box3::inflate_one(const glm::vec3& pt)
+void box3::inflate(const glm::vec3& pt)
 {
     min.x = std::min(pt.x, min.x);
     min.y = std::min(pt.y, min.y);
@@ -11,12 +11,6 @@ void box3::inflate_one(const glm::vec3& pt)
     max.x = std::max(pt.x, max.x);
     max.y = std::max(pt.y, max.y);
     max.z = std::max(pt.z, max.z);
-}
-
-template<>
-inline void box3::inflate(const glm::vec3& pt)
-{
-    inflate_one(pt);
 }
 
 meshcp_query_base::meshcp_query_base(const mesh& m) : m_mesh(m)
@@ -79,6 +73,19 @@ void mesh::populate_facetree(boost_rtree& tree)
         box3 box;
         box.inflate(vertices[face[0]], vertices[face[1]], vertices[face[2]]);
         items.emplace_back(box.boostbox, fi);
+    }
+    tree.insert(items.cbegin(), items.cend());
+}
+
+void mesh::populate_vertextree(boost_rtree& tree)
+{
+    std::vector<rtree_item> items;
+    items.reserve(faces.size());
+    for (uint32_t vi = 0; vi < vertices.size(); vi++)
+    {
+        box3 box;
+        box.inflate(vertices.at(vi));
+        items.emplace_back(box.boostbox, vi);
     }
     tree.insert(items.cbegin(), items.cend());
 }
