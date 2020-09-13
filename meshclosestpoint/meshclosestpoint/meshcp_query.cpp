@@ -97,11 +97,8 @@ void mesh::populate_vertextree(boost_rtree& tree)
 void mesh::face_closest_pt(uint32_t faceIndex, const glm::vec3& pt, float& squaredDistance, glm::vec3& dest) const
 {
     const face_type& face = faces.at(faceIndex);
-    const glm::vec3& a = vertices.at(face[0]);
-    const glm::vec3& b = vertices.at(face[1]);
-    const glm::vec3& c = vertices.at(face[2]);
     const glm::vec3& facenorm = face_normals.at(faceIndex);
-    glm::vec3 projection = facenorm * glm::dot(a - pt, facenorm);
+    glm::vec3 projection = facenorm * glm::dot(vertices.at(face[0]) - pt, facenorm);
     float projLenSq = squared_length(projection);
     if (projLenSq >= squaredDistance)
         return;

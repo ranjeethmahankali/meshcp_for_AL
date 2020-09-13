@@ -5,6 +5,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <cfloat>
+#include <bitset>
 
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
@@ -43,13 +44,8 @@ struct edge_info
 
 struct barycentric
 {
-    glm::vec3 vertex = UNSET;
-    glm::vec3 edge0 = UNSET;
-    glm::vec3 edge1 = UNSET;
-    float d00 = FLT_MAX;
-    float d01 = FLT_MAX;
-    float d11 = FLT_MAX;
-    float det = FLT_MAX;
+    glm::vec3 vertex = UNSET, edge0 = UNSET, edge1 = UNSET;
+    float d00 = FLT_MAX, d01 = FLT_MAX, d11 = FLT_MAX, det = FLT_MAX;
 
     barycentric(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c);
     glm::vec3 coords(glm::vec3& pt) const;
@@ -89,18 +85,13 @@ struct box3
 public:
     union
     {
-        struct
-        {
-            glm::vec3 min;
-            glm::vec3 max;
-        };
+        struct { glm::vec3 min, max; };
         boost_box3f boostbox;
     };
 
     box3();
 
     void inflate(const glm::vec3& pt);
-
     void inflate(float dist);
 
     template <typename T, typename... TMore>
@@ -122,8 +113,7 @@ namespace options
 class meshcp_query
 {
     mesh m_mesh;
-    boost_rtree m_facetree;
-    boost_rtree m_verttree;
+    boost_rtree m_facetree, m_verttree;
     mutable std::vector<rtree_item> serialResultsBuf;
 
 public:
@@ -177,4 +167,43 @@ public:
     {
         return run<options::SERIAL>(pt, maxDistance);
     };
+};
+
+template <size_t Depth>
+struct octree_bits
+{
+    static constexpr size_t NUM_BITS = 1 << (3 * Depth);
+    static constexpr uint8_t NUM_CHILDREN = 8;
+    using child_type = octree_bits<Depth - 1>;
+    union
+    {
+        std::bitset<NUM_BITS> m_bits;
+        child_type m_children[NUM_CHILDREN];
+    };
+
+    constexpr size_t depth() const noexcept { return Depth; };
+    bool full() const noexcept { return m_bits.all(); };
+    bool empty() const noexcept { return m_bits.none(); }
+    bool num_active() const noexcept { return m_bits.count(); };
+    
+    template <uint8_t ChildIndex>
+    const child_type& child() const noexcept
+    {
+        static_assert(ChildIndex < NUM_CHILDREN, "An Octree has at most 8 children.");
+        return m_bits[ChildIndex];
+    };
+};
+
+template <>
+struct octree_bits<1>
+{
+    static constexpr size_t NUM_BITS = 8;
+    static constexpr uint8_t NONE = 0ui8;
+    static constexpr uint8_t ALL = ~(0ui8);
+    uint8_t m_bits;
+
+    constexpr size_t depth() const noexcept { return 1; };
+    bool full() const noexcept { return m_bits == ALL; };
+    bool empty() const noexcept { return m_bits == NONE; }
+    //bool num_active() const noexcept { return ; };
 };
