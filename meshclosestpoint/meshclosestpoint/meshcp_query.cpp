@@ -1,24 +1,24 @@
 #include "meshcp_query.h"
 #include <stdarg.h>
 
-box3::box3() : min(UNSET), max(-UNSET) { }
+box3::box3() : simplebox{ UNSET , -UNSET } {}
 
 void box3::inflate(const glm::vec3& pt)
 {
-    min.x = std::min(pt.x, min.x);
-    min.y = std::min(pt.y, min.y);
-    min.z = std::min(pt.z, min.z);
-    max.x = std::max(pt.x, max.x);
-    max.y = std::max(pt.y, max.y);
-    max.z = std::max(pt.z, max.z);
+    simplebox.min.x = std::min(pt.x, simplebox.min.x);
+    simplebox.min.y = std::min(pt.y, simplebox.min.y);
+    simplebox.min.z = std::min(pt.z, simplebox.min.z);
+    simplebox.max.x = std::max(pt.x, simplebox.max.x);
+    simplebox.max.y = std::max(pt.y, simplebox.max.y);
+    simplebox.max.z = std::max(pt.z, simplebox.max.z);
 }
 
 void box3::inflate(float dist)
 {
     dist = std::max(0.0f, dist);
     glm::vec3 half(dist, dist, dist);
-    min -= half;
-    max += half;
+    simplebox.min -= half;
+    simplebox.max += half;
 }
 
 void mesh::compute_normals()

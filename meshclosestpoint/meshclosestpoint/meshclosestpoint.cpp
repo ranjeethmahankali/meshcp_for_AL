@@ -141,8 +141,7 @@ int main(int argc, char* argv[])
         std::cerr << "Please supply the name of the test case.\n";
         return 1;
     }
-    //std::string name(argv[1]);
-    std::string name("D:\\OneDrive\\Works\\myPrograms\\meshcp_for_AL\\meshclosestpoint\\x64\\Release\\bunny");
+    std::string name(argv[1]);
     std::cout << "=============================\n";
     std::cout << "Test case: " << name << std::endl;
     std::cout << "=============================\n\n";

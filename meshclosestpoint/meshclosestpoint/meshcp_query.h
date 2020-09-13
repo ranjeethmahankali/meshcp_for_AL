@@ -75,9 +75,10 @@ struct box3
         sizeof(boost_box3f) == sizeof(glm::vec3) * 2,
         "The use of union in this structure doesn't make sense.");
 public:
+    struct simple_box { glm::vec3 min, max; };
     union
     {
-        struct { glm::vec3 min, max; };
+        simple_box simplebox;
         boost_box3f boostbox;
     };
 
