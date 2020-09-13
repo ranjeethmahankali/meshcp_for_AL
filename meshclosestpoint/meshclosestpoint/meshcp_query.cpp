@@ -1,7 +1,11 @@
 #include "meshcp_query.h"
 #include <stdarg.h>
 
-box3::box3() : simplebox{ UNSET , -UNSET } {}
+box3::box3()
+{
+    simplebox.min = UNSET;
+    simplebox.max = -simplebox.min;
+}
 
 void box3::inflate(const glm::vec3& pt)
 {

@@ -19,7 +19,7 @@ using boost_box3f = bgm::box<boost_vec3f>;
 using rtree_item = std::pair<boost_box3f, uint32_t>;
 using boost_rtree = bgi::rtree<rtree_item, bgi::quadratic<RTREE_NUM_ELEMENTS_PER_NODE>>;
 
-constexpr glm::vec3 UNSET{ FLT_MAX, FLT_MAX, FLT_MAX };
+#define UNSET { FLT_MAX, FLT_MAX, FLT_MAX }
 
 template <typename T>
 float clamp(T val, T min, T max)
