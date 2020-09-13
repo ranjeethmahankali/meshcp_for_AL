@@ -40,15 +40,7 @@ struct edge_info
     edge_info(const glm::vec3& v1, const glm::vec3& v2);
 
     void closest_point(const glm::vec3& pt, const glm::vec3& projected, float& squaredDistance, glm::vec3& dest) const;
-};
-
-struct barycentric
-{
-    glm::vec3 vertex = UNSET, edge0 = UNSET, edge1 = UNSET;
-    float d00 = FLT_MAX, d01 = FLT_MAX, d11 = FLT_MAX, det = FLT_MAX;
-
-    barycentric(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c);
-    glm::vec3 coords(glm::vec3& pt) const;
+    float orientation(const glm::vec3& pt, const glm::vec3& facenormal) const;
 };
 
 struct mesh
@@ -56,7 +48,6 @@ struct mesh
 private:
     void compute_normals();
     void cache_edge_info();
-    void cache_barycentric();
 public:
     using face_type = std::array<uint32_t, 3>;
     using edgeset_type = std::array<edge_info, 3>;
@@ -64,7 +55,6 @@ public:
     std::vector<face_type> faces;
     std::vector<glm::vec3> face_normals;
     std::vector<edgeset_type> face_edges;
-    std::vector<barycentric> barycentric_caches;
 
     mesh() = default;
     mesh(const glm::vec3* verts, uint32_t nVerts, const uint32_t* triIndices, uint32_t nTriangles);

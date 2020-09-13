@@ -48,23 +48,12 @@ void mesh::cache_edge_info()
     }
 }
 
-void mesh::cache_barycentric()
-{
-    barycentric_caches.clear();
-    barycentric_caches.reserve(faces.size());
-    for (const mesh::face_type& face : faces)
-    {
-        barycentric_caches.emplace_back(vertices.at(face[0]), vertices.at(face[1]), vertices.at(face[2]));
-    }
-}
-
 mesh::mesh(const glm::vec3* verts, uint32_t nVerts, const uint32_t* triIndices, uint32_t nTriangles) :
     vertices(verts, verts + nVerts), faces(nTriangles)
 {
     std::memcpy(faces.data(), triIndices, sizeof(uint32_t) * 3 * nTriangles);
     compute_normals();
     cache_edge_info();
-    cache_barycentric();
 }
 
 void mesh::populate_facetree(boost_rtree& tree)
@@ -96,28 +85,31 @@ void mesh::populate_vertextree(boost_rtree& tree)
 
 void mesh::face_closest_pt(uint32_t faceIndex, const glm::vec3& pt, float& squaredDistance, glm::vec3& dest) const
 {
-    const face_type& face = faces.at(faceIndex);
     const glm::vec3& facenorm = face_normals.at(faceIndex);
-    glm::vec3 projection = facenorm * glm::dot(vertices.at(face[0]) - pt, facenorm);
+    glm::vec3 projection = facenorm * glm::dot(vertices.at(faces.at(faceIndex)[0]) - pt, facenorm);
     float projLenSq = squared_length(projection);
     if (projLenSq >= squaredDistance)
         return;
     glm::vec3 projected = projection + pt;
-    glm::vec3 bary = barycentric_caches.at(faceIndex).coords(projected);
 
-    if (bary.x > 0 && bary.y > 0 && bary.z > 0)
+    const edgeset_type& edges = face_edges.at(faceIndex);
+    uint8_t nOutside = 0;
+    for (const edge_info& edge : edges)
+    {
+        if (edge.orientation(pt, facenorm) < 0.0f)
+        {
+            nOutside++;
+            edge.closest_point(pt, projected, squaredDistance, dest);
+        }
+        if (nOutside > 1)
+            break;
+    }
+
+    if (nOutside == 0)
     {
         squaredDistance = projLenSq;
         dest = projected;
-        return;
     }
-    const edgeset_type& edges = face_edges.at(faceIndex);
-    if (bary.x < 0)
-        edges.at(0).closest_point(pt, projected, squaredDistance, dest);
-    if (bary.y < 0)
-        edges.at(1).closest_point(pt, projected, squaredDistance, dest);
-    if (bary.z < 0)
-        edges.at(2).closest_point(pt, projected, squaredDistance, dest);
 }
 
 float squared_length(const glm::vec3& a)
@@ -142,23 +134,7 @@ void edge_info::closest_point(const glm::vec3& pt, const glm::vec3& projected, f
     }
 }
 
-barycentric::barycentric(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c) :
-    vertex(a), edge0(b - a), edge1(c - a)
+float edge_info::orientation(const glm::vec3& pt, const glm::vec3& facenormal) const
 {
-    d00 = glm::dot(edge0, edge0);
-    d01 = glm::dot(edge0, edge1);
-    d11 = glm::dot(edge1, edge1);
-    det = d00 * d11 - d01 * d01;
-}
-
-glm::vec3 barycentric::coords(glm::vec3& pt) const
-{
-    glm::vec3 v2 = pt - vertex;
-    float d20 = glm::dot(v2, edge0);
-    float d21 = glm::dot(v2, edge1);
-    glm::vec3 bary;
-    bary.y = det == 0.0f ? FLT_MAX : (d11 * d20 - d01 * d21) / det;
-    bary.z = det == 0.0f ? FLT_MAX : (d00 * d21 - d01 * d20) / det;
-    bary.x = 1.0f - bary.y - bary.z;
-    return bary;
+    return glm::dot(glm::cross(vector, pt - start), facenormal);
 }
