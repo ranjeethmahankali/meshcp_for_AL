@@ -109,6 +109,7 @@ bool write_bytes(const std::string& filepath, const char* const bytes, size_t nB
     }
     ofs.write(bytes, nBytes);
     ofs.close();
+    return true;
 }
 
 void write_results(const std::string& filepath, const std::vector<glm::vec3>& results)
@@ -166,7 +167,7 @@ int main(int argc, char* argv[])
         results.push_back(query(pt, 100.0f));
     }
     auto end = std::chrono::high_resolution_clock::now();
-    std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+    std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " microseconds\n";
 
     float error = max_error(expected, results, points);
     std::cout << "Maximum deviation from the expected results: " << error << std::endl;
@@ -183,7 +184,7 @@ int main(int argc, char* argv[])
             results[i] = query.run<options::PARALLEL>(points[i], 100.0f);
         });
     end = std::chrono::high_resolution_clock::now();
-    std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+    std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " microseconds\n";
     error = max_error(expected, results, points);
     std::cout << "Maximum deviation from the expected results: " << error << std::endl;
 
