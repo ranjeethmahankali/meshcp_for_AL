@@ -3,8 +3,6 @@
 #include <glm/glm.hpp>
 #include <meshcp_query.h>
 #include <fstream>
-#include <chrono>
-#include <execution>
 
 #define SERIAL_TYPE_ERR_MSG "This datatype cannot be serialized / deserialzed."
 
@@ -143,7 +141,8 @@ int main(int argc, char* argv[])
         std::cerr << "Please supply the name of the test case.\n";
         return 1;
     }
-    std::string name(argv[1]);
+    //std::string name(argv[1]);
+    std::string name("D:\\OneDrive\\Works\\myPrograms\\meshcp_for_AL\\meshclosestpoint\\x64\\Release\\bunny");
     std::cout << "=============================\n";
     std::cout << "Test case: " << name << std::endl;
     std::cout << "=============================\n\n";
@@ -171,20 +170,15 @@ int main(int argc, char* argv[])
 
     float error = max_error(expected, results, points);
     std::cout << "Maximum deviation from the expected results: " << error << std::endl;
-
-    std::vector<uint32_t> indices(points.size());
-    std::iota(indices.begin(), indices.end(), 0);
-    results.resize(indices.size());
+    
     results.clear();
-    results.resize(indices.size());
-    std::cout << "\nPerforming parallel MeshCP query with " << points.size() << " test points\n";
-    start = std::chrono::high_resolution_clock::now();
-    std::for_each(std::execution::par_unseq, indices.cbegin(), indices.cend(),
-        [&points, &query, &results](uint32_t i) {
-            results[i] = query.run<options::PARALLEL>(points[i], 100.0f);
-        });
-    end = std::chrono::high_resolution_clock::now();
-    std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " microseconds\n";
+    results.resize(points.size());
+    {
+        parallel_meshcp_query<10> pquery(msh, points.data(), results.data(), points.size(), 100.0f);
+        std::cout << "\nPerforming parallel MeshCP query with " << points.size() << " test points\n";
+        pquery.run_parallel();
+        std::cout << "Time taken: " << pquery.time_taken() << " microseconds\n";
+    }
     error = max_error(expected, results, points);
     std::cout << "Maximum deviation from the expected results: " << error << std::endl;
 

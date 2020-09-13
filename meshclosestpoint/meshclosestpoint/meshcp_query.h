@@ -6,6 +6,8 @@
 #include <glm/glm.hpp>
 #include <cfloat>
 #include <bitset>
+#include <thread>
+#include <chrono>
 
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
@@ -153,10 +155,55 @@ public:
         return best;
     };
 
-    glm::vec3 operator()(const glm::vec3& pt, float maxDistance) const
+    glm::vec3 operator()(const glm::vec3& pt, float maxDistance) const;
+};
+
+template <size_t NThreads>
+class parallel_meshcp_query : public meshcp_query
+{
+    std::array<std::thread, NThreads> m_threads;
+    uint64_t m_timeMicroSeconds = 0;
+    const glm::vec3* const m_points;
+    glm::vec3* const m_results;
+    size_t m_numPoints;
+    float m_maxDistance;
+
+    void run_range(size_t i, size_t j)
     {
-        return run<options::SERIAL>(pt, maxDistance);
+        while (i != j)
+        {
+            m_results[i] = run<options::PARALLEL>(m_points[i], m_maxDistance);
+            if (++i > m_numPoints) break;
+        }
+    }
+
+public:
+    parallel_meshcp_query(const mesh& m, const glm::vec3* const points, glm::vec3* const results, size_t numPoints, float maxDistance) :
+        meshcp_query(m), m_points(points), m_results(results), m_numPoints(numPoints), m_maxDistance(maxDistance)
+    {
     };
+
+    void run_parallel()
+    {
+        size_t rangeSize = m_numPoints / NThreads;
+        auto timeStart = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < NThreads; i++)
+        {
+            size_t start = rangeSize * i;
+            size_t end = i == NThreads - 1 ? m_numPoints : start + rangeSize;
+            m_threads[i] = std::thread(&parallel_meshcp_query::run_range, this, start, end);
+        }
+
+        for (std::thread& t : m_threads)
+            t.join();
+        auto timeEnd = std::chrono::high_resolution_clock::now();
+        m_timeMicroSeconds = std::chrono::duration_cast<std::chrono::microseconds>(timeEnd - timeStart).count();
+    };
+
+    uint64_t time_taken() const
+    {
+        return m_timeMicroSeconds;
+    }
 };
 
 template <size_t Depth>
@@ -188,8 +235,8 @@ template <>
 struct octree_bits<1>
 {
     static constexpr size_t NUM_BITS = 8;
-    static constexpr uint8_t NONE = 0ui8;
-    static constexpr uint8_t ALL = ~(0ui8);
+    static constexpr uint8_t NONE = 0;
+    static constexpr uint8_t ALL = ~(0);
     uint8_t m_bits;
 
     constexpr size_t depth() const noexcept { return 1; };

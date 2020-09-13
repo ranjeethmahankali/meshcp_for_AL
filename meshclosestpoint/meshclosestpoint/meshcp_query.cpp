@@ -112,6 +112,11 @@ void mesh::face_closest_pt(uint32_t faceIndex, const glm::vec3& pt, float& squar
     }
 }
 
+glm::vec3 meshcp_query::operator()(const glm::vec3& pt, float maxDistance) const
+{
+    return run<options::SERIAL>(pt, maxDistance);
+}
+
 float squared_length(const glm::vec3& a)
 {
     return a.x * a.x + a.y * a.y + a.z * a.z;
