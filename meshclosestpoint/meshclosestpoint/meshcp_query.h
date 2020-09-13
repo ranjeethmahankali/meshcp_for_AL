@@ -110,34 +110,7 @@ class meshcp_query
     mutable std::vector<rtree_item> serialResultsBuf;
 
     template <options::options_type Options>
-    glm::vec3 search_query_box(const glm::vec3& pt, const box3& queryBox) const
-    {
-        static_assert(false, "Template specialization necessary.");
-    }
-
-    template <>
-    glm::vec3 search_query_box<options::SERIAL>(const glm::vec3& pt, const box3& queryBox) const
-    {
-        glm::vec3 best = UNSET;
-        float bestDistSq = FLT_MAX;
-        serialResultsBuf.clear();
-        m_facetree.query(bgi::intersects(queryBox.boostbox), std::back_inserter(serialResultsBuf));
-        for (const rtree_item& item : serialResultsBuf)
-            m_mesh.face_closest_pt(item.second, pt, bestDistSq, best);
-        return best;
-    }
-
-    template <>
-    glm::vec3 search_query_box<options::PARALLEL>(const glm::vec3& pt, const box3& queryBox) const
-    {
-        glm::vec3 best = UNSET;
-        float bestDistSq = FLT_MAX;
-        std::vector<rtree_item> queryResults;
-        m_facetree.query(bgi::intersects(queryBox.boostbox), std::back_inserter(queryResults));
-        for (const rtree_item& item : queryResults)
-            m_mesh.face_closest_pt(item.second, pt, bestDistSq, best);
-        return best;
-    }
+    glm::vec3 search_query_box(const glm::vec3& pt, const box3& queryBox) const {};
 
 public:
     meshcp_query(const mesh& m) : m_mesh(m)
@@ -166,6 +139,30 @@ public:
 
     glm::vec3 operator()(const glm::vec3& pt, float maxDistance) const;
 };
+
+template <>
+inline glm::vec3 meshcp_query::search_query_box<options::SERIAL>(const glm::vec3& pt, const box3& queryBox) const
+{
+    glm::vec3 best = UNSET;
+    float bestDistSq = FLT_MAX;
+    serialResultsBuf.clear();
+    m_facetree.query(bgi::intersects(queryBox.boostbox), std::back_inserter(serialResultsBuf));
+    for (const rtree_item& item : serialResultsBuf)
+        m_mesh.face_closest_pt(item.second, pt, bestDistSq, best);
+    return best;
+}
+
+template <>
+inline glm::vec3 meshcp_query::search_query_box<options::PARALLEL>(const glm::vec3& pt, const box3& queryBox) const
+{
+    glm::vec3 best = UNSET;
+    float bestDistSq = FLT_MAX;
+    std::vector<rtree_item> queryResults;
+    m_facetree.query(bgi::intersects(queryBox.boostbox), std::back_inserter(queryResults));
+    for (const rtree_item& item : queryResults)
+        m_mesh.face_closest_pt(item.second, pt, bestDistSq, best);
+    return best;
+}
 
 template <size_t NThreads>
 class parallel_meshcp_query : public meshcp_query
