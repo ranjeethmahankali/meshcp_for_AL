@@ -118,5 +118,25 @@ namespace Generate
                 expectedResults.Add(new Point3d(x, y, z));
             }
         }
+
+        public static void ReadResults(string path, string name, out List<Point3d> results)
+        {
+            var bytes = File.ReadAllBytes(Path.Combine(path, name + "_results.dat"));
+            int pos = 0;
+            uint nPoints = BitConverter.ToUInt32(bytes, pos);
+            pos += sizeof(uint);
+            results = new List<Point3d>();
+
+            for (int i = 0; i < nPoints; i++)
+            {
+                float x = BitConverter.ToSingle(bytes, pos);
+                pos += sizeof(float);
+                float y = BitConverter.ToSingle(bytes, pos);
+                pos += sizeof(float);
+                float z = BitConverter.ToSingle(bytes, pos);
+                pos += sizeof(float);
+                results.Add(new Point3d(x, y, z));
+            }
+        }
     }
 }

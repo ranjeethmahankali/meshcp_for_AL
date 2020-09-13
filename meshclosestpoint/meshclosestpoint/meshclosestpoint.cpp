@@ -6,6 +6,8 @@
 #include <chrono>
 #include <execution>
 
+#define SERIAL_TYPE_ERR_MSG "This datatype cannot be serialized / deserialzed."
+
 template <typename T>
 struct is_serial : public std::is_fundamental<T> {};
 
@@ -15,7 +17,7 @@ struct is_serial<glm::vec3> : public std::true_type {};
 template <typename T>
 size_t deserialize(char* src, size_t pos, T& dest)
 {
-    static_assert(is_serial<T>::value, "Unsupported type.");
+    static_assert(is_serial<T>::value, SERIAL_TYPE_ERR_MSG);
     std::memcpy(&dest, src + pos, sizeof(T));
     return pos + sizeof(T);
 };
@@ -23,11 +25,28 @@ size_t deserialize(char* src, size_t pos, T& dest)
 template <typename T>
 size_t deserialize(char* src, size_t pos, T* dest, size_t numElements)
 {
-    static_assert(is_serial<T>::value, "Unsupported type.");
+    static_assert(is_serial<T>::value, SERIAL_TYPE_ERR_MSG);
     size_t nBytes = numElements * sizeof(T);
     std::memcpy(dest, src + pos, nBytes);
     return pos + nBytes;
 };
+
+template <typename T>
+size_t serialize(char* dest, size_t pos, const T& data)
+{
+    static_assert(is_serial<T>::value, SERIAL_TYPE_ERR_MSG);
+    std::memcpy(dest + pos, &data, sizeof(T));
+    return pos + sizeof(T);
+};
+
+template <typename T>
+size_t serialize(char* dest, size_t pos, const T* const data, size_t numElements)
+{
+    static_assert(is_serial<T>::value, SERIAL_TYPE_ERR_MSG);
+    size_t nBytes = numElements * sizeof(T);
+    std::memcpy(dest + pos, data, nBytes);
+    return pos + nBytes;
+}
 
 bool read_bytes(const std::string& filepath, std::vector<char>& bytes)
 {
@@ -80,6 +99,30 @@ void read_points(const std::string& filepath, std::vector<glm::vec3>& samples, s
     assert(pos == bytes.size()); // EOF
 }
 
+bool write_bytes(const std::string& filepath, const char* const bytes, size_t nBytes)
+{
+    std::ofstream ofs(filepath, std::ios::binary | std::ios::out);
+    if (!ofs.is_open())
+    {
+        std::cerr << "Unable to write file - " << filepath << std::endl;
+        return false;
+    }
+    ofs.write(bytes, nBytes);
+    ofs.close();
+}
+
+void write_results(const std::string& filepath, const std::vector<glm::vec3>& results)
+{
+    std::vector<char> bytes(sizeof(uint32_t) + results.size() * sizeof(glm::vec3));
+    size_t pos = 0;
+    char* dest = bytes.data();
+    pos = serialize(dest, pos, (uint32_t)results.size());
+    pos = serialize(dest, pos, results.data(), results.size());
+    assert(pos == bytes.size()); // EOF
+
+    write_bytes(filepath, bytes.data(), bytes.size());
+};
+
 float max_error(const std::vector<glm::vec3>& expected, const std::vector<glm::vec3>& results, const std::vector<glm::vec3>& points)
 {
     size_t nPoints = std::min(expected.size(), results.size());
@@ -100,7 +143,6 @@ int main(int argc, char* argv[])
         return 1;
     }
     std::string name(argv[1]);
-    //std::string name("D:\\OneDrive\\Works\\myPrograms\\meshcp_for_AL\\meshclosestpoint\\x64\\Release\\dragon");
     std::cout << "=============================\n";
     std::cout << "Test case: " << name << std::endl;
     std::cout << "=============================\n\n";
@@ -144,4 +186,10 @@ int main(int argc, char* argv[])
     std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
     error = max_error(expected, results, points);
     std::cout << "Maximum deviation from the expected results: " << error << std::endl;
+
+    std::string resultsfile = name + "_results.dat";
+    std::cout << "\nWriting results to - " << resultsfile << std::endl;
+    write_results(resultsfile, results);
+    std::cout << "Done.\n";
+    return 0;
 }
